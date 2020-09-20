@@ -18,9 +18,11 @@
             let zipBlob = null;
 
             let zipBlobP = new Promise((resolve, reject) => {
-                    zipFile = fetch(zipUrl).then(data => {
-                    data.blob().then(resolve);
-                });
+                zipFile = fetch(zipUrl)
+                    .then(data => {
+                        data.blob().then(resolve);
+                    })
+                    .catch(alert);
             });
 
             const list = document.getElementById('list');
@@ -70,7 +72,7 @@
                         }
                     });
                 }, function(error) {
-                    // onerror callback
+                    alert(error);
                 });
             }
 
