@@ -1,0 +1,37 @@
+<html>
+    <head>
+        <title></title>
+        <script type="text/javascript" src="js/zip.js"></script>
+    </head>
+    <body>
+        <script>
+            const params = location.hash.substring(1).split('&');
+            const [zipUrl, filename] = params.map(decodeURI);
+
+            zipFile = fetch(zipUrl).then(data => {
+                zip.workerScriptsPath = 'js/';
+
+                data.blob().then(zipBlob => {
+                    zip.createReader(new zip.BlobReader(zipBlob), function(reader) {
+                        reader.getEntries(function(entries) {
+                            for(entry of entries) {
+                                if(entry.filename != filename) continue;
+                                entry.getData(new zip.BlobWriter(), function(blob) {
+                                    const url = URL.createObjectURL(blob);
+                                    open(url, '_self');
+                                    reader.close(function() {
+                                    });
+                                }, function(current, total) {
+                                // onprogress callback
+                                });
+                            }
+                        });
+                    }, function(error) {
+                        // onerror callback
+                    });
+                });
+            });
+        </script>
+    </body>
+</html>
+
