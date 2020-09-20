@@ -2,11 +2,13 @@
     <head>
         <title>Directory Listing</title>
         <script type="text/javascript" src="js/zip.js"></script>
+        <script src="https://unpkg.com/arweave@1.9.1/bundles/web.bundle.min.js"></script>
         <style>body { background: #dfd }</style>
     </head>
     <body>
         <h1>Directory Listing</h1>
         <p>ZIP: <code id="zip"></code> / <code id="dir"></code></p>
+        <p>Arweave wallet file: <input type="file" id="arweaveKey" onchange="chooseWallet()"/></p>
         <ul id="list"></ul>
         <script>
             const params = location.hash.substring(1).split('&');
@@ -16,22 +18,35 @@
             zip.workerScriptsPath = 'js/';
 
             let zipBlob = null;
+            let arweaveKey = null;
 
             let zipBlobP = new Promise((resolve, reject) => {
-                zipFile = fetch(zipUrl)
+                if(zipBlob) resolve(zipBlob);
+                fetch(zipUrl)
                     .then(data => {
-                        data.blob().then(resolve);
+                        data.blob().then(blob => {
+                            resolve(zipBlob = blob);
+                        });
                     })
                     .catch(alert);
             });
 
+            function chooseWallet() {
+                const keyFileReader = new FileReader();
+                keyFileReader.onload = (e) => {
+                    const keyString = e.target.result;
+                    arweaveKey = JSON.parse(keyString);
+                };
+                keyFileReader.readAsText(document.getElementById('arweaveKey').files[0]);
+            }
+
             const list = document.getElementById('list');
 
-            function createLi(href, text) {
+            function createLi(hrefStart, filename, text, parenthesised) {
                 const li = document.createElement('li');
                 const a = document.createElement('a');
                 a.textContent = text;
-                a.setAttribute('href', href);
+                a.setAttribute('href', hrefStart + encodeURI(filename));
                 a.onclick = () => {
                     const href = a.getAttribute('href');
                     if(href.startsWith('file.html#')) return true;
@@ -45,6 +60,52 @@
                     return false;
                 };
                 li.appendChild(a);
+                if(parenthesised) {
+                    li.appendChild(document.createTextNode(" ["));
+                    const a2 = document.createElement('a');
+                    a2.textContent = "Extract to Arweave";
+                    a2.setAttribute('href', "#");
+                    a2.onclick = () => {
+                        if(!arweaveKey) {
+                            alert(`Provide an Arweave wallet file!`);
+                            return;
+                        }
+                        if(!confirm("Upload to Arweave?")) return false;
+                        zip.createReader(new zip.BlobReader(zipBlob), function(reader) {
+                            reader.getEntries(function(entries) {
+                                for(entry of entries) {
+                                    if(entry.filename != filename) continue;
+                                    entry.getData(new zip.BlobWriter(), async function(blob) {
+                                        //const Arweave = require('arweave');
+                                        const arweave = Arweave.init();
+                                        let transaction = await arweave.createTransaction({
+                                            data: new Uint8Array(await blob.arrayBuffer()),
+                                        }, arweaveKey);
+                                        // transaction.addTag('Content-Type', contentType);
+                                        await arweave.transactions.sign(transaction, arweaveKey);
+                                        let uploader = await arweave.transactions.getUploader(transaction);
+                                        while (!uploader.isComplete) {
+                                            await uploader.uploadChunk();
+                                            console.log(`${uploader.pctComplete}% complete, ${uploader.uploadedChunks}/${uploader.totalChunks}`);
+                                        }
+                                        alert(`Uploaded to https://arweave.net/${transaction.id}`)
+
+                                        reader.close(function() {
+                                        });
+                                    }, function(current, total) {
+                                    // onprogress callback
+                                    });
+                                    break;
+                                }
+                            });
+                        }, function(error) {
+                            alert(error);
+                        });
+                        return false;
+                    };
+                    li.appendChild(a2);
+                    li.appendChild(document.createTextNode("]"));
+                }
                 return li;
             }
 
@@ -53,7 +114,7 @@
 
                 if(dirname.length) {
                     const parent = dirname.substring(0, dirname.substring(0, dirname.length - 1).lastIndexOf('/')) + '/';
-                    list.appendChild(createLi('dir.html#' + encodeURI(zipUrl) + '&' + encodeURI(parent != '/' ? parent : ''), ".."));
+                    list.appendChild(createLi('dir.html#' + encodeURI(zipUrl) + '&', parent != '/' ? parent : '', ".."));
                 }
 
                 zip.createReader(new zip.BlobReader(await zipBlobP), function(reader) {
@@ -65,10 +126,13 @@
                             if(idx != -1 && idx != filename.length - 1) continue; // skip grandchilds
                             const li = document.createElement('li');
                             const a = document.createElement('a');
-                            list.appendChild(createLi(entry.filename.endsWith('/')
-                                ? 'dir.html#' + encodeURI(zipUrl) + '&' + encodeURI(entry.filename)
-                                : 'file.html#' + encodeURI(zipUrl) + '&' + encodeURI(entry.filename),
-                                filename));
+                            const isDir = entry.filename.endsWith('/');
+                            list.appendChild(
+                                createLi(isDir ? 'dir.html#' + encodeURI(zipUrl) + '&'
+                                               : 'file.html#' + encodeURI(zipUrl) + '&',
+                                    entry.filename,
+                                    filename,
+                                    !isDir));
                         }
                     });
                 }, function(error) {
