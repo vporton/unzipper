@@ -1,0 +1,79 @@
+<html>
+    <head>
+        <title>Directory Listing</title>
+        <script type="text/javascript" src="js/zip.js"></script>
+    </head>
+    <body>
+        <h1>Directory Listing</h1>
+        <p>ZIP: <code id="zip"></code> / <code id="dir"></code></p>
+        <ul id="list"></ul>
+        <script>
+            const params = location.hash.substring(1).split('&');
+            let [zipUrl, dirname] = params.map(decodeURI);
+            document.getElementById('zip').textContent = zipUrl;
+
+            zip.workerScriptsPath = 'js/';
+
+            let zipBlob = null;
+
+            let zipBlobP = new Promise((resolve, reject) => {
+                    zipFile = fetch(zipUrl).then(data => {
+                    data.blob().then(resolve);
+                });
+            });
+
+            const list = document.getElementById('list');
+
+            function createLi(href, text) {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.textContent = text;
+                a.setAttribute('href', href);
+                a.onclick = () => {
+                    const href = a.getAttribute('href');
+                    if(href.startsWith('load.html#')) return true;
+                    window.location = href;
+                    dirname = href.substring(href.indexOf('&') + 1);
+                    while(list.firstChild) {
+                        list.removeChild(list.firstChild);
+                    }
+                    loadDir();
+                    return false;
+                };
+                li.appendChild(a);
+                return li;
+            }
+
+            async function loadDir() {
+                document.getElementById('dir').textContent = dirname;
+
+                if(dirname.length) {
+                    const parent = dirname.substring(0, dirname.substring(0, dirname.length - 1).lastIndexOf('/')) + '/';
+                    list.appendChild(createLi('dir.html#' + encodeURI(zipUrl) + '&' + encodeURI(parent != '/' ? parent : ''), ".."));
+                }
+
+                zip.createReader(new zip.BlobReader(await zipBlobP), function(reader) {
+                    reader.getEntries(function(entries) {
+                        for(entry of entries.filter(x => x.filename.startsWith(dirname))) {
+                            const filename = entry.filename.substring(dirname.length);
+                            if(!filename.length) continue;
+                            const idx = filename.indexOf('/');
+                            if(idx != -1 && idx != filename.length - 1) continue; // skip grandchilds
+                            const li = document.createElement('li');
+                            const a = document.createElement('a');
+                            list.appendChild(createLi(entry.filename.endsWith('/')
+                                ? 'dir.html#' + encodeURI(zipUrl) + '&' + encodeURI(entry.filename)
+                                : 'file.html#' + encodeURI(zipUrl) + '&' + encodeURI(entry.filename),
+                                filename));
+                        }
+                    });
+                }, function(error) {
+                    // onerror callback
+                });
+            }
+
+            loadDir();
+        </script>
+    </body>
+</html>
+
