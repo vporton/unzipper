@@ -34,7 +34,7 @@
                 a.setAttribute('href', href);
                 a.onclick = () => {
                     const href = a.getAttribute('href');
-                    if(href.startsWith('load.html#')) return true;
+                    if(href.startsWith('file.html#')) return true;
                     // window.location = href;
                     window.history.pushState({}, window.title, href)
                     dirname = href.substring(href.indexOf('&') + 1);
