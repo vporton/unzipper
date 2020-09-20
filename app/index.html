@@ -1,0 +1,28 @@
+<html>
+    <head>
+        <title>Browse ZIP File Online</title>
+        <style>
+            body { background: lightblue }
+            input { width: 100% }
+        </style>
+        <script>
+            function onFormSubmit(event) {
+                const zip = document.getElementById('url').value;
+                const path = document.getElementById('path').value;
+                const isDir = path == "" || path.endsWith('/');
+                const action = (isDir ? "dir.html#" : "file.html#") + encodeURI(zip) + '&' + encodeURI(path);
+                event.target.setAttribute('action', action);
+            }
+        </script>
+    </head>
+    <body>
+        <h1>Browse ZIP File Online</h1>
+        <form action="" onsubmit="onFormSubmit(event)">
+            <p>ZIP file URL: <input type="url" id="url"/></p>
+            <p>File or dir (end with <code>/</code>): <input type="path" id="path"/></p>
+            <p><input type="submit" value="Open"/></p>
+        </form>
+        <p><a target="_blank" href="https://github.com/vporton/unzipper">GitHub</a></p>
+    </body>
+</html>
+
